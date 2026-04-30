@@ -1,0 +1,30 @@
+graph TD
+  %% L0 (entrypoints)
+  main["main"]
+  %% L1
+  docs["docs"]
+  entrypoints["entrypoints"]
+  commands_go_lyze["go_lyze"]
+  packages["packages"]
+  %% L2
+  limitutil["limitutil"]
+  xmlutil["xmlutil"]
+  pkg_go_lyze["go_lyze"]
+  %% L3 (utilities)
+  fsutil["fsutil"]
+  %% edges
+  main-->docs
+  main-->entrypoints
+  main-->commands_go_lyze
+  main-->packages
+  docs-->fsutil
+  docs-->limitutil
+  docs-->xmlutil
+  entrypoints-->fsutil
+  entrypoints-->limitutil
+  entrypoints-->xmlutil
+  commands_go_lyze-->pkg_go_lyze
+  packages-->fsutil
+  packages-->limitutil
+  packages-->xmlutil
+  pkg_go_lyze-->fsutil
