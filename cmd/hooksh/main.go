@@ -15,8 +15,9 @@ import (
 
 func main() {
 	cmd := &cli.Command{
-		Name:  "hooksh",
-		Usage: "LLM-ready code context generator",
+		Name:    "hooksh",
+		Usage:   "LLM-ready code context generator",
+		Version: "v0.0.4",
 		Commands: []*cli.Command{
 			{
 				Name:  "docs",
