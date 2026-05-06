@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Package Graph — API</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js"></script>
+
+    <style>
+        body, html { height: 100%; margin: 0; overflow: hidden; }
+
+        #network-container {
+            width: 100%; height: 100%;
+            cursor: grab;
+        }
+        #network-container:active { cursor: grabbing; }
+        .canvas-light {
+            background-color: #f9f9fb;
+            background-image: radial-gradient(circle, #d4d4d8 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+        .canvas-dark {
+            background-color: #0f0f11;
+            background-image: radial-gradient(circle, #2e2e33 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+
+        .dark body  { background: #09090b; color: #fafafa; }
+        .dark #info-card { background: rgba(24,24,27,0.92); border-color: #3f3f46; }
+        .dark #info-card-header { background: #09090b; }
+        .dark .info-list-item { background: #27272a; border-color: #3f3f46; color: #e4e4e7; }
+        .dark .section-label { color: #71717a; }
+        .dark .empty-item { color: #52525b; }
+        .dark .ctrl-btn { background: rgba(24,24,27,0.8); border-color: #3f3f46; color: #a1a1aa; }
+        .dark .ctrl-btn:hover { background: #27272a; color: #fafafa; }
+        .dark #empty-state { background: rgba(15,15,17,0.6); }
+        .dark #empty-state h2 { color: #52525b; }
+
+        .dark #hidden-nodes-container { background: rgba(24,24,27,0.9); border-color: #3f3f46; }
+        .dark #hidden-nodes-list > div:hover { background: #27272a; }
+        .dark #hidden-nodes-list span { color: #e4e4e7; }
+
+        /* Screenshot mode: hide controls but keep hidden nodes list */
+        .is-screenshotting .ctrl-btn:not(.screenshot-keep),
+        .is-screenshotting #info-card,
+        .is-screenshotting #error-box {
+            display: none !important;
+        }
+
+        .is-screenshotting #hidden-nodes-container {
+            display: block !important;
+            box-shadow: none !important;
+        }
+
+        .is-screenshotting #hidden-nodes-container h4 {
+            display: block !important;
+        }
+
+        .is-screenshotting .remove-node-btn {
+            display: none !important;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #3f3f46; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-[#f9f9fb] text-zinc-900 font-sans" id="body">
+
+<div class="flex h-screen w-full overflow-hidden relative">
+    <!-- ── Canvas ── -->
+    <div class="flex-1 relative">
+        <div id="network-container" class="canvas-light w-full h-full"></div>
+        <script id="mermaid-data" type="text/plain">
+            <!-- MERMAID_DATA -->
+        </script>
+
+        <!-- Controls (top-left) -->
+        <div class="absolute top-4 left-4 flex flex-col gap-2 z-10">
+            <button id="dir-toggle-btn" class="ctrl-btn bg-white/80 backdrop-blur-sm border border-zinc-200 p-2 rounded-lg shadow-sm hover:bg-white transition-all text-zinc-600 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider" title="Toggle Layout Direction">
+                <span id="dir-label">LR</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M7 10l5 5 5-5"/>
+                </svg>
+            </button>
+
+            <div id="hidden-nodes-container" class="hidden mt-2 w-36 bg-white/80 backdrop-blur-sm border border-zinc-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
+                <div class="px-3 py-1.5 flex justify-between items-center">
+                    <h4 class="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">Hidden Packages</h4>
+                </div>
+                <div id="hidden-nodes-list" class="flex flex-col custom-scrollbar max-h-40 overflow-y-auto">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+
+        <div id="error-box"
+             class="hidden absolute top-4 left-4 z-40 p-3 bg-red-50 border border-red-100 text-red-600 text-xs rounded-lg font-medium shadow-lg max-w-sm"></div>
+
+        /* Info card (top-right) */
+        <div id="info-card"
+             class="hidden absolute top-4 right-4 w-72 bg-white/90 backdrop-blur-md border border-zinc-200 rounded-2xl shadow-2xl z-10 overflow-hidden flex flex-col max-h-[80vh]">
+            <div id="info-card-header" class="bg-zinc-900 px-3 py-2.5 flex justify-between items-center shrink-0">
+                <h3 id="info-title"
+                    class="text-[11px] font-bold text-white uppercase tracking-widest truncate mr-3">Details</h3>
+                <button id="close-info" class="text-zinc-400 hover:text-white transition-colors shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-4 space-y-4 overflow-y-auto custom-scrollbar text-sm">
+                <div class="flex items-center justify-between border-b border-zinc-100 pb-3">
+                    <span class="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Visibility</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="node-visible-toggle" class="sr-only peer" checked>
+                        <div class="w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                </div>
+
+                <div>
+                    <h4 class="section-label text-[10px] font-bold text-zinc-400 uppercase mb-2 tracking-widest">
+                        Node Color
+                    </h4>
+                    <div id="color-presets" class="grid grid-cols-5 gap-2">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="section-label text-[10px] font-bold text-zinc-400 uppercase mb-2 tracking-widest">
+                        Imported By
+                    </h4>
+                    <ul id="parents-list" class="space-y-1"></ul>
+                </div>
+                <div>
+                    <h4 class="section-label text-[10px] font-bold text-zinc-400 uppercase mb-2 tracking-widest">
+                        Imports
+                    </h4>
+                    <ul id="children-list" class="space-y-1"></ul>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Controls (bottom-right) -->
+        <div class="absolute bottom-4 right-4 flex flex-col gap-2">
+            <button id="reset-layout-btn" class="ctrl-btn bg-white/80 backdrop-blur-sm border border-zinc-200 p-2 rounded-lg shadow-sm hover:bg-white transition-all text-zinc-600" title="Reset layout">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                    <path d="M21 3v5h-5"/>
+                    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+                    <path d="M3 21v-5h5"/>
+                </svg>
+            </button>
+            <button id="fit-btn" class="ctrl-btn bg-white/80 backdrop-blur-sm border border-zinc-200 p-2 rounded-lg shadow-sm hover:bg-white transition-all text-zinc-600" title="Fit view">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 3 21 3 21 9"/>
+                    <polyline points="9 21 3 21 3 15"/>
+                    <line x1="21" y1="3" x2="14" y2="10"/>
+                    <line x1="3" y1="21" x2="10" y2="14"/>
+                </svg>
+            </button>
+            <button id="dark-toggle-btn" class="ctrl-btn bg-white/80 backdrop-blur-sm border border-zinc-200 p-2 rounded-lg shadow-sm hover:bg-white transition-all text-zinc-600" title="Toggle dark mode">
+                <svg id="dark-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+            </button>
+        </div>
+
+
+        <!-- Empty state -->
+        <div id="empty-state"
+             class="hidden absolute inset-0 flex items-center justify-center pointer-events-none bg-zinc-50/60 backdrop-blur-[2px]">
+            <div class="text-center p-8">
+                <h2 class="text-base font-semibold text-zinc-400">Diagram empty or invalid</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ─── Constants & state ────────────────────────────────────────────────────
+    const LS_DARK       = 'pkg_graph_v1_dark';
+
+    let network         = null;
+    let currentGraphData = { nodes: [], edges: [] };
+    let isDark          = localStorage.getItem(LS_DARK) !== '0';
+    let selectedNodeId  = null;
+    let layoutDir       = 'TD';
+
+    // ─── Hidden nodes ─────────────────────────────────────────────────────────
+    const DEFAULT_HIDDEN = [];
+    // const DEFAULT_COLLAPSED = ['ptr', 'report', 'cfg', 'connector']; // TODO collapsible nodes, fold children in
+    let hiddenNodes = new Set(DEFAULT_HIDDEN);
+
+    // ─── Default Colors & Options ─────────────────────────────────────────────
+    const PRESET_COLORS = [
+        '#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4',
+        '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef'
+    ];
+
+    const THEME_DEFAULTS = {
+        l_edgeMuted:      '#00000058',
+        l_edgeActive:     '#4f46e5',
+        l_edgeHighlight:  '#52525b',
+        d_edgeMuted:      '#FFFFFF40',
+        d_edgeActive:     '#6366f1',
+        d_edgeHighlight:  '#a1a1aa',
+    };
+
+    // Node-specific color map: { nodeId: hexColor }
+    let nodeColorOverrides = {};
+
+    function getNodeColor(nodeId) {
+        if (nodeColorOverrides[nodeId]) return nodeColorOverrides[nodeId];
+        // Default color logic based on package patterns
+        if (['main'].includes(nodeId)) return '#6366f1'; // Indigo
+        return '#10b981'; // Emerald
+    }
+
+    // ─── DOM refs ─────────────────────────────────────────────────────────────
+    const body            = document.getElementById('body');
+    const container       = document.getElementById('network-container');
+    const errorBox        = document.getElementById('error-box');
+    const emptyState      = document.getElementById('empty-state');
+    const fitBtn          = document.getElementById('fit-btn');
+    const resetBtn        = document.getElementById('reset-layout-btn');
+    const darkToggleBtn   = document.getElementById('dark-toggle-btn');
+    const dirToggleBtn    = document.getElementById('dir-toggle-btn');
+    const dirLabel        = document.getElementById('dir-label');
+    const infoCard        = document.getElementById('info-card');
+    const infoTitle       = document.getElementById('info-title');
+    const parentsList     = document.getElementById('parents-list');
+    const childrenList    = document.getElementById('children-list');
+    const closeInfoBtn    = document.getElementById('close-info');
+    const nodeVisibleToggle = document.getElementById('node-visible-toggle');
+    const colorPresets    = document.getElementById('color-presets');
+    const hiddenNodesContainer = document.getElementById('hidden-nodes-container');
+    const hiddenNodesList      = document.getElementById('hidden-nodes-list');
+
+    // ─── Theme helpers ────────────────────────────────────────────────────────
+    function buildTheme() {
+        return {
+            nodeBg:             isDark ? '#1c1c1f' : '#ffffff',
+            nodeBorder:         isDark ? '#3f3f46' : '#e4e4e7',
+            nodeHoverBg:        isDark ? '#27272a' : '#f4f4f5',
+            nodeHoverBorder:    isDark ? '#52525b' : '#d4d4d8',
+            nodeSelectedBorder: isDark ? '#a1a1aa' : '#71717a',
+            nodeText:           isDark ? '#fafafa' : '#18181b',
+            canvasBg:           isDark ? '#0f0f11' : '#f9f9fb',
+            edgeMuted:          isDark ? THEME_DEFAULTS.d_edgeMuted    : THEME_DEFAULTS.l_edgeMuted,
+            edgeActive:         isDark ? THEME_DEFAULTS.d_edgeActive   : THEME_DEFAULTS.l_edgeActive,
+            edgeHighlight:      isDark ? THEME_DEFAULTS.d_edgeHighlight: THEME_DEFAULTS.l_edgeHighlight,
+        };
+    }
+
+    function mixHex(a, b, ratio) {
+        // Handles 8-char hex (with alpha) by stripping alpha
+        const clean = s => s.replace(/^#/, '').slice(0, 6);
+        const pa = parseInt(clean(a), 16);
+        const pb = parseInt(clean(b), 16);
+        const ar = (pa >> 16) & 0xff, ag = (pa >> 8) & 0xff, ab = pa & 0xff;
+        const br = (pb >> 16) & 0xff, bg = (pb >> 8) & 0xff, bb = pb & 0xff;
+        const r  = Math.round(ar * (1 - ratio) + br * ratio);
+        const g  = Math.round(ag * (1 - ratio) + bg * ratio);
+        const bl = Math.round(ab * (1 - ratio) + bb * ratio);
+        return '#' + ((r << 16) | (g << 8) | bl).toString(16).padStart(6, '0');
+    }
+
+    function nodeMainColor(id) {
+        return getNodeColor(id);
+    }
+
+    function statusBgColor(id, theme) {
+        return mixHex(nodeMainColor(id), theme.canvasBg, 0.9);
+    }
+
+    // ─── Dark mode ────────────────────────────────────────────────────────────
+    function applyDarkMode() {
+        if (isDark) {
+            body.classList.add('dark');
+            container.classList.remove('canvas-light');
+            container.classList.add('canvas-dark');
+        } else {
+            body.classList.remove('dark');
+            container.classList.remove('canvas-dark');
+            container.classList.add('canvas-light');
+        }
+    }
+
+    // ─── Mermaid parser ───────────────────────────────────────────────────────
+    function applyDagreLayout(graphData) {
+        const g = new dagre.graphlib.Graph({ compound: true });
+        g.setDefaultEdgeLabel(() => ({}));
+        g.setGraph({
+            rankdir: layoutDir,
+            nodesep: layoutDir === 'LR' ? 10 : 0,
+            ranksep: layoutDir === 'LR' ? 100 : 160,
+            edgesep: 0,
+            acyclicer: 'greedy',
+            ranker: 'network-simplex', // better at centering than tight-tree
+            align: undefined,          // undefined = dagre centers nodes within their rank
+        });
+        const NODE_W = 100, NODE_H = 34;
+        graphData.nodes.forEach(n => g.setNode(n.id, { width: NODE_W, height: NODE_H }));
+        graphData.edges.forEach(e => g.setEdge(e.from, e.to));
+
+        // After dagre has run layout, post-process root node position
+        function centerRootNode(g, rootNodeId) {
+            const children = g.successors(rootNodeId);
+
+            if (!children || children.length === 0) return;
+
+            const childYPositions = children.map((id) => layoutDir === 'LR' ? g.node(id).y : g.node(id).x);
+            const minY = Math.min(...childYPositions);
+            const maxY = Math.max(...childYPositions);
+            const centeredY = (minY + maxY) / 2;
+
+            const rootNode = g.node(rootNodeId);
+            if (layoutDir === 'LR'){
+                rootNode.y = centeredY;
+            } else{
+                rootNode.x = centeredY;
+            }
+        }
+
+        // Call it after dagre.layout(g)
+        dagre.layout(g);
+        centerRootNode(g, 'api');
+        graphData.nodes.forEach(n => {
+            const dn = g.node(n.id);
+            n.x = dn.x; n.y = dn.y;
+        });
+    }
+
+    // ─── Mermaid parser ───────────────────────────────────────────────────────
+    function parseMermaid(text) {
+        const nodesMap = new Map();
+        const edges    = [];
+        const nodeDefRe = /^([a-zA-Z0-9_-]+)(?:\[["']?(.*?)["']?\]|\((.*?)\)|\{\{(.*?)\}\}|\{(.*?)\})/;
+
+        text.split('\n').forEach(line => {
+            const clean = line.split('%%')[0].trim();
+            if (!clean || /^(graph|flowchart)/i.test(clean)) return;
+
+            if (clean.includes('-->') || clean.includes('---')) {
+                const parts = clean.split(/\s*(?:-[-|>]+|==[=>]+)\s*/);
+                for (let i = 0; i < parts.length - 1; i++) {
+                    const fm = parts[i].split('|')[0].trim().match(/^([a-zA-Z0-9_-]+)/);
+                    const tm = parts[i + 1].split('|').pop().trim().match(/^([a-zA-Z0-9_-]+)/);
+                    if (!fm || !tm) continue;
+                    const fromId = fm[1], toId = tm[1];
+                    if (!nodesMap.has(fromId)) nodesMap.set(fromId, { id: fromId, label: fromId });
+                    if (!nodesMap.has(toId))   nodesMap.set(toId,   { id: toId,   label: toId   });
+                    const lm = parts[i + 1].match(/^\|(.*?)\|/);
+                    edges.push({ from: fromId, to: toId, label: lm ? lm[1] : '' });
+                }
+            }
+
+            const nm = clean.match(nodeDefRe);
+            if (nm) {
+                const id    = nm[1];
+                let   label = (nm[2] || nm[3] || nm[4] || nm[5] || id)
+                    .replace(/^["'](.*?)["']$/, '$1');
+                if (nodesMap.has(id)) nodesMap.get(id).label = label;
+                else nodesMap.set(id, { id, label });
+            }
+        });
+
+        return { nodes: Array.from(nodesMap.values()), edges };
+    }
+
+    // ─── Build vis-network dataset (respects hiddenNodes) ────────────────────
+    function buildVisData(activeGraphData) {
+        const theme    = buildTheme();
+
+        const visNodes = activeGraphData.nodes
+            .map(n => {
+                const nodeCol = nodeMainColor(n.id);
+                const bgCol   = statusBgColor(n.id, theme);
+                return {
+                    id:    n.id,
+                    label: n.label,
+                    x:     n.x,
+                    y:     n.y,
+                    shape: 'box',
+                    shapeProperties: { borderRadius: 20 },
+                    color: {
+                        background: bgCol,
+                        border:     nodeCol,
+                        highlight:  { background: bgCol, border: nodeCol },
+                        hover:      { background: bgCol, border: nodeCol },
+                    },
+                    borderWidth:         1,
+                    borderWidthSelected: 3,
+                    font: {
+                        size:        12,
+                        face:        'system-ui, ui-sans-serif, sans-serif',
+                        color:       theme.nodeText,
+                        strokeWidth: 0,
+                    },
+                    margin: { top: 6, bottom: 6, left: 8, right: 8 },
+                    shadow: false,
+                };
+            });
+
+        const visEdges = activeGraphData.edges
+            .map((e, i) => ({
+                id:    `e${i}`,
+                from:  e.from,
+                to:    e.to,
+                label: e.label || '',
+                color: {
+                    color:     theme.edgeMuted,
+                    highlight: theme.edgeHighlight,
+                    hover:     theme.edgeHighlight,
+                },
+                width: 1.5,
+                arrows: { to: { enabled: true, scaleFactor: 0.6, type: 'arrow' } },
+                smooth: { 
+                    type: 'cubicBezier', 
+                    forceDirection: layoutDir === 'LR' ? 'horizontal' : 'vertical', 
+                    roundness: 0.6 
+                },
+            }));
+
+        return { nodes: visNodes, edges: visEdges };
+    }
+
+    // ─── Render ───────────────────────────────────────────────────────────────
+    async function renderGraph(input) {
+        updateHiddenNodesUI();
+        if (!input.trim()) {
+            emptyState.classList.remove('hidden');
+            return;
+        }
+        try {
+            await mermaid.parse(input);
+            errorBox.classList.add('hidden');
+            emptyState.classList.add('hidden');
+
+            currentGraphData = parseMermaid(input);
+            if (currentGraphData.nodes.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            // Create a filtered version of the graph data for layout and rendering
+            const visibleNodes = currentGraphData.nodes.filter(n => !hiddenNodes.has(n.id));
+            const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
+            const visibleEdges = currentGraphData.edges.filter(e => visibleNodeIds.has(e.from) && visibleNodeIds.has(e.to));
+
+            const activeGraphData = { nodes: visibleNodes, edges: visibleEdges };
+
+            applyDagreLayout(activeGraphData);
+
+            const { nodes: visNodes, edges: visEdges } = buildVisData(activeGraphData);
+
+            const options = {
+                physics:     { enabled: false },
+                interaction: { hover: true, tooltipDelay: 200, hideEdgesOnDrag: false, zoomSpeed: 0.2 },
+                layout:      { improvedLayout: false },
+            };
+
+            if (network) network.destroy();
+            network = new vis.Network(container,
+                { nodes: new vis.DataSet(visNodes), edges: new vis.DataSet(visEdges) },
+                options
+            );
+
+            network.on('selectNode',   (p) => { if (p.nodes.length) updateInfoCard(p.nodes[0]); });
+            network.on('selectEdge',   (p) => { if (!p.nodes.length && p.edges.length) updateEdgeInfo(p.edges[0]); });
+            network.on('deselectNode', () => { infoCard.classList.add('hidden'); selectedNodeId = null; });
+            network.on('deselectEdge', () => { infoCard.classList.add('hidden'); selectedNodeId = null; });
+
+            network.fit({ animation: false });
+
+        } catch (err) {
+            errorBox.textContent = err.message;
+            errorBox.classList.remove('hidden');
+        }
+    }
+
+    // ─── Info card helpers ────────────────────────────────────────────────────
+    function updateInfoCard(nodeId) {
+        selectedNodeId = nodeId;
+        const node = currentGraphData.nodes.find(n => n.id === nodeId);
+        if (!node) return;
+        infoTitle.textContent = node.label;
+
+        // Visibility toggle
+        nodeVisibleToggle.checked = !hiddenNodes.has(nodeId);
+
+        // Color presets
+        colorPresets.innerHTML = '';
+        const activeColor = nodeMainColor(nodeId);
+        PRESET_COLORS.forEach(color => {
+            const btn = document.createElement('button');
+            btn.className = `w-8 h-8 rounded-full border-2 transition-all ${activeColor === color ? 'border-zinc-900 scale-110' : 'border-transparent hover:scale-105'}`;
+            btn.style.backgroundColor = color;
+            btn.onclick = () => {
+                nodeColorOverrides[nodeId] = color;
+                renderGraph(currentMermaidText);
+                updateInfoCard(nodeId); // Refresh highlight
+            };
+            colorPresets.appendChild(btn);
+        });
+
+        const parents  = currentGraphData.edges
+            .filter(e => e.to === nodeId)
+            .map(e => ({ label: currentGraphData.nodes.find(n => n.id === e.from)?.label || e.from }));
+
+        const children = currentGraphData.edges
+            .filter(e => e.from === nodeId)
+            .map(e => ({ label: currentGraphData.nodes.find(n => n.id === e.to)?.label || e.to }));
+
+        renderList(parentsList,  parents,  'Not imported by anything');
+        renderList(childrenList, children, 'No imports');
+        infoCard.classList.remove('hidden');
+    }
+
+    function updateEdgeInfo(edgeId) {
+        const idx  = parseInt(edgeId.replace(/^e/, ''), 10);
+        const edge = currentGraphData.edges[idx];
+        if (!edge) return;
+        const from = currentGraphData.nodes.find(n => n.id === edge.from);
+        const to   = currentGraphData.nodes.find(n => n.id === edge.to);
+        infoTitle.textContent = 'Dependency';
+        renderList(parentsList,  [{ label: from?.label || edge.from }], '');
+        renderList(childrenList, [{ label: to?.label   || edge.to   }], '');
+        infoCard.classList.remove('hidden');
+    }
+
+    function renderList(el, items, emptyText) {
+        el.innerHTML = '';
+        if (!items.length) {
+            const li = document.createElement('li');
+            li.className = 'empty-item text-zinc-400 italic text-xs';
+            li.textContent = emptyText;
+            el.appendChild(li);
+            return;
+        }
+        items.forEach(({ label }) => {
+            const li = document.createElement('li');
+            li.className = 'info-list-item bg-zinc-50 px-2 py-1.5 rounded-md border border-zinc-100 text-zinc-700 font-medium text-xs truncate';
+            li.textContent = label;
+            el.appendChild(li);
+        });
+    }
+
+    function updateHiddenNodesUI() {
+        if (!hiddenNodesList) return;
+        hiddenNodesList.innerHTML = '';
+        
+        if (hiddenNodes.size === 0) {
+            hiddenNodesContainer.classList.add('hidden');
+            return;
+        }
+        
+        hiddenNodesContainer.classList.remove('hidden');
+        
+        Array.from(hiddenNodes).sort().forEach(nodeId => {
+            const node = currentGraphData.nodes.find(n => n.id === nodeId);
+            const label = node ? node.label : nodeId;
+            
+            const item = document.createElement('div');
+            item.className = 'group flex items-center justify-between px-3 py-1 hover:bg-white transition-colors';
+            item.innerHTML = `
+                <span class="text-[10px] text-zinc-600 font-medium truncate mr-2">${label}</span>
+                <button class="remove-node-btn text-zinc-300 hover:text-red-500 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            `;
+            item.querySelector('.remove-node-btn').onclick = () => {
+                hiddenNodes.delete(nodeId);
+                renderGraph(currentMermaidText);
+            };
+            hiddenNodesList.appendChild(item);
+        });
+    }
+
+    // ─── Init ─────────────────────────────────────────────────────────────────
+    let currentMermaidText = '';
+
+    window.onload = () => {
+        mermaid.initialize({ startOnLoad: false });
+        applyDarkMode();
+
+        fetch('graph.mermaid')
+            .then(r => { if (!r.ok) throw new Error('not found'); return r.text(); })
+            .then(t => {
+                currentMermaidText = t;
+                renderGraph(t);
+            })
+            .catch(() => {
+                // Try to find embedded mermaid
+                const embedded = document.getElementById('mermaid-data');
+                if (embedded) {
+                    currentMermaidText = embedded.textContent.trim();
+                } else {
+                    currentMermaidText = 'graph LR\n  api["api"]\n  api --> core\n  core --> cfg';
+                }
+                renderGraph(currentMermaidText);
+            });
+
+        fitBtn.onclick = () => network && network.fit({ animation: true });
+
+        resetBtn.onclick = () => {
+            hiddenNodes = new Set(DEFAULT_HIDDEN);
+            nodeColorOverrides = {};
+            layoutDir = 'LR';
+            dirLabel.textContent = 'LR';
+            renderGraph(currentMermaidText);
+        };
+
+        darkToggleBtn.onclick = () => {
+            isDark = !isDark;
+            localStorage.setItem(LS_DARK, isDark ? '1' : '0');
+            applyDarkMode();
+            renderGraph(currentMermaidText);
+        };
+
+        closeInfoBtn.onclick = () => infoCard.classList.add('hidden');
+
+        dirToggleBtn.onclick = () => {
+            layoutDir = (layoutDir === 'LR' ? 'TD' : 'LR');
+            dirLabel.textContent = layoutDir;
+            renderGraph(currentMermaidText);
+        };
+
+        // Node Visibility Toggle
+        nodeVisibleToggle.onchange = () => {
+            if (!selectedNodeId) return;
+            if (nodeVisibleToggle.checked) {
+                hiddenNodes.delete(selectedNodeId);
+            } else {
+                hiddenNodes.add(selectedNodeId);
+                infoCard.classList.add('hidden');
+            }
+            
+            renderGraph(currentMermaidText);
+        };
+    };
+</script>
+</body>
+</html>

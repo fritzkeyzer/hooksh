@@ -16,6 +16,11 @@ go install github.com/fritzkeyzer/hooksh/cmd/hooksh@latest
 
 ![graph.png](graph.png)
 
+### Interactive html and/or rendered html
+
+Eg: `hooksh go-lyze --format mermaid --top "cmd/hooksh" --output graph.mermaid --html graph.html --html-render graph.html.png`
+![graph.html.png](graph.html.png)
+
 ### Mermaid output
 
 - Eg: `hooksh go-lyze --format mermaid --top "cmd/hooksh"` 

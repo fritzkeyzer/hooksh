@@ -144,6 +144,19 @@ func main() {
 						Usage: "output format: json, md, mermaid, or dot",
 						Value: "json",
 					},
+					&cli.StringFlag{
+						Name:    "output",
+						Aliases: []string{"o"},
+						Usage:   "specify the output file",
+					},
+					&cli.StringFlag{
+						Name:  "html",
+						Usage: "output graph.html to specified filename",
+					},
+					&cli.StringFlag{
+						Name:  "html-render",
+						Usage: "render graph to png via headless chrome to specified filename",
+					},
 					&cli.StringSliceFlag{
 						Name:  "top",
 						Usage: "comma-separated package dirs to pin as L0 entrypoints (md format only)",
@@ -160,6 +173,9 @@ func main() {
 						Format:              cmd.String("format"),
 						TopPkgs:             cmd.StringSlice("top"),
 						TransitiveReduction: cmd.Bool("transitive-reduction"),
+						Output:              cmd.String("output"),
+						HTML:                cmd.String("html"),
+						HTMLRender:          cmd.String("html-render"),
 					})
 					return nil
 				},
