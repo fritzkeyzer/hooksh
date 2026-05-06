@@ -1,6 +1,6 @@
 # Hooksh
 
-Its a dumb working title, for a little utility im playing around with
+A dumb working title for a little utility I'm playing around with.
 
 ## Install
 
@@ -8,23 +8,12 @@ Its a dumb working title, for a little utility im playing around with
 go install github.com/fritzkeyzer/hooksh/cmd/hooksh@latest
 ```
 
-## Graph gen commands
+## Examples
 
-### DOT > PNG Output
-- Requires the `dot` tool.
-- `hooksh go-lyze --format dot --top "cmd/hooksh" | dot -Tpng -o "graph.png"`
+For more please see the `/demo` directory and [generate.sh](demo/generate.sh) 
 
-![graph.png](graph.png)
+### Go code graph as mermaid and dot output
 
-### Interactive html and/or rendered html
-
-Eg: `hooksh go-lyze --format mermaid --top "cmd/hooksh" --output graph.mermaid --html graph.html --html-render graph.html.png`
-![graph.html.png](graph.html.png)
-
-### Mermaid output
-
-- Eg: `hooksh go-lyze --format mermaid --top "cmd/hooksh"` 
-- Or: `hooksh go-lyze --format mermaid --top "cmd/hooksh" > graph.mermaid`
 ```mermaid
 graph TD
   %% L0 (entrypoints)
@@ -58,10 +47,36 @@ graph TD
   pkg_go_lyze-->fsutil
 ```
 
+> Note: To covert dot output to png you will need the `dot` cli.
+
+![graph.dot.png](demo/graph.dot.png)
+
+
+### Interactive html and/or rendered html
+
+The `hooksh` cli can generate a static html file with the graph data and configuration embedded.
+To allow interactive browsing of the code structure.
+See [interactive html](demo/graph.html) (open this in your browser or within your IDE)
+You can zoom, pan, re-arrange nodes, hide nodes, change node colors, change light/dark mode, layout direction.
+
+This rich html viewer can be rendered with the `--html-render` flag. Which uses a headless chromium instance to perform a screenshot.
+
+**Default output:**
+
+![graph.html.png](demo/graph.html.png)
+
+**With configuration:**
+- dark mode
+- layout (left-to-right vs top-down)
+- title + subtitle
+- hidden nodes and node colors
+- render resolution
+
+![graph.dark.html.png](demo/graph.dark.html.png)
 
 ## XML Output commands
 
-`hooksh` emits one XML block per command:
+Some commands emit XML blocks.
 
 Eg: `hooksh docs --kind md --limit 10`
 ```xml

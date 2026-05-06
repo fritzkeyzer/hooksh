@@ -17,6 +17,11 @@
             cursor: grab;
         }
         #network-container:active { cursor: grabbing; }
+        
+        #title-container {
+            pointer-events: none;
+        }
+
         .canvas-light {
             background-color: #f9f9fb;
             background-image: radial-gradient(circle, #d4d4d8 1px, transparent 1px);
@@ -50,12 +55,12 @@
             display: none !important;
         }
 
-        .is-screenshotting #hidden-nodes-container {
+        .is-screenshotting #hidden-nodes-container:not(.hidden) {
             display: block !important;
             box-shadow: none !important;
         }
 
-        .is-screenshotting #hidden-nodes-container h4 {
+        .is-screenshotting #hidden-nodes-container:not(.hidden) h4 {
             display: block !important;
         }
 
@@ -76,6 +81,13 @@
     <!-- ── Canvas ── -->
     <div class="flex-1 relative">
         <div id="network-container" class="canvas-light w-full h-full"></div>
+        
+        <!-- Title & Subtitle (top-center) -->
+        <div id="title-container" class="absolute top-6 left-1/2 -translate-x-1/2 flex flex-col items-center z-20 text-center">
+            <h1 id="graph-title" class="text-xl font-bold text-zinc-800 dark:text-zinc-100 tracking-tight"></h1>
+            <p id="graph-subtitle" class="text-xs font-medium text-zinc-500 dark:text-zinc-400 mt-0.5"></p>
+        </div>
+
         <script id="mermaid-data" type="text/plain">
             graph TD
   %% L0 (entrypoints)
@@ -221,16 +233,16 @@
 
 <script>
     // ─── Constants & state ────────────────────────────────────────────────────
-    const LS_DARK       = 'pkg_graph_v1_dark';
+    const HOOKSH_CONFIG = {"hiddenNodes":null,"nodeColorMap":{},"darkDefault":false,"layout":"TD","title":"","subtitle":""};
 
     let network         = null;
     let currentGraphData = { nodes: [], edges: [] };
-    let isDark          = localStorage.getItem(LS_DARK) !== '0';
+    let isDark          = Boolean(HOOKSH_CONFIG.darkDefault);
     let selectedNodeId  = null;
-    let layoutDir       = 'TD';
+    let layoutDir       = HOOKSH_CONFIG.layout || 'TD';
 
     // ─── Hidden nodes ─────────────────────────────────────────────────────────
-    const DEFAULT_HIDDEN = [];
+    const DEFAULT_HIDDEN = Array.isArray(HOOKSH_CONFIG.hiddenNodes) ? HOOKSH_CONFIG.hiddenNodes : [];
     // const DEFAULT_COLLAPSED = ['ptr', 'report', 'cfg', 'connector']; // TODO collapsible nodes, fold children in
     let hiddenNodes = new Set(DEFAULT_HIDDEN);
 
@@ -250,7 +262,9 @@
     };
 
     // Node-specific color map: { nodeId: hexColor }
-    let nodeColorOverrides = {};
+    let nodeColorOverrides = (HOOKSH_CONFIG.nodeColorMap && typeof HOOKSH_CONFIG.nodeColorMap === 'object')
+        ? { ...HOOKSH_CONFIG.nodeColorMap }
+        : {};
 
     function getNodeColor(nodeId) {
         if (nodeColorOverrides[nodeId]) return nodeColorOverrides[nodeId];
@@ -262,6 +276,8 @@
     // ─── DOM refs ─────────────────────────────────────────────────────────────
     const body            = document.getElementById('body');
     const container       = document.getElementById('network-container');
+    const graphTitle      = document.getElementById('graph-title');
+    const graphSubtitle   = document.getElementById('graph-subtitle');
     const errorBox        = document.getElementById('error-box');
     const emptyState      = document.getElementById('empty-state');
     const fitBtn          = document.getElementById('fit-btn');
@@ -269,6 +285,9 @@
     const darkToggleBtn   = document.getElementById('dark-toggle-btn');
     const dirToggleBtn    = document.getElementById('dir-toggle-btn');
     const dirLabel        = document.getElementById('dir-label');
+
+    if (dirLabel) dirLabel.textContent = layoutDir;
+
     const infoCard        = document.getElementById('info-card');
     const infoTitle       = document.getElementById('info-title');
     const parentsList     = document.getElementById('parents-list');
@@ -313,7 +332,7 @@
     }
 
     function statusBgColor(id, theme) {
-        return mixHex(nodeMainColor(id), theme.canvasBg, 0.9);
+        return mixHex(nodeMainColor(id), theme.canvasBg, 0.6);
     }
 
     // ─── Dark mode ────────────────────────────────────────────────────────────
@@ -468,10 +487,15 @@
         return { nodes: visNodes, edges: visEdges };
     }
 
+    function fitGraphToScreen() {
+        if (!network) return;
+        network.fit({ animation: false, padding: 0 });
+    }
+
     // ─── Render ───────────────────────────────────────────────────────────────
     async function renderGraph(input) {
-        updateHiddenNodesUI();
         if (!input.trim()) {
+            updateHiddenNodesUI();
             emptyState.classList.remove('hidden');
             return;
         }
@@ -481,6 +505,7 @@
             emptyState.classList.add('hidden');
 
             currentGraphData = parseMermaid(input);
+            updateHiddenNodesUI();
             if (currentGraphData.nodes.length === 0) {
                 emptyState.classList.remove('hidden');
                 return;
@@ -514,7 +539,7 @@
             network.on('deselectNode', () => { infoCard.classList.add('hidden'); selectedNodeId = null; });
             network.on('deselectEdge', () => { infoCard.classList.add('hidden'); selectedNodeId = null; });
 
-            network.fit({ animation: false });
+            fitGraphToScreen();
 
         } catch (err) {
             errorBox.textContent = err.message;
@@ -592,15 +617,19 @@
     function updateHiddenNodesUI() {
         if (!hiddenNodesList) return;
         hiddenNodesList.innerHTML = '';
-        
-        if (hiddenNodes.size === 0) {
+
+        const activeHiddenNodes = Array.from(hiddenNodes)
+            .filter(id => currentGraphData.nodes.some(n => n.id === id))
+            .sort();
+
+        if (activeHiddenNodes.length === 0) {
             hiddenNodesContainer.classList.add('hidden');
             return;
         }
-        
+
         hiddenNodesContainer.classList.remove('hidden');
-        
-        Array.from(hiddenNodes).sort().forEach(nodeId => {
+
+        activeHiddenNodes.forEach(nodeId => {
             const node = currentGraphData.nodes.find(n => n.id === nodeId);
             const label = node ? node.label : nodeId;
             
@@ -629,6 +658,9 @@
         mermaid.initialize({ startOnLoad: false });
         applyDarkMode();
 
+        if (graphTitle) graphTitle.textContent = HOOKSH_CONFIG.title || '';
+        if (graphSubtitle) graphSubtitle.textContent = HOOKSH_CONFIG.subtitle || '';
+
         fetch('graph.mermaid')
             .then(r => { if (!r.ok) throw new Error('not found'); return r.text(); })
             .then(t => {
@@ -646,19 +678,20 @@
                 renderGraph(currentMermaidText);
             });
 
-        fitBtn.onclick = () => network && network.fit({ animation: true });
+        fitBtn.onclick = () => fitGraphToScreen();
 
         resetBtn.onclick = () => {
             hiddenNodes = new Set(DEFAULT_HIDDEN);
-            nodeColorOverrides = {};
-            layoutDir = 'LR';
-            dirLabel.textContent = 'LR';
+            nodeColorOverrides = (HOOKSH_CONFIG.nodeColorMap && typeof HOOKSH_CONFIG.nodeColorMap === 'object')
+                ? { ...HOOKSH_CONFIG.nodeColorMap }
+                : {};
+            layoutDir = HOOKSH_CONFIG.layout || 'TD';
+            dirLabel.textContent = layoutDir;
             renderGraph(currentMermaidText);
         };
 
         darkToggleBtn.onclick = () => {
             isDark = !isDark;
-            localStorage.setItem(LS_DARK, isDark ? '1' : '0');
             applyDarkMode();
             renderGraph(currentMermaidText);
         };

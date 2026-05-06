@@ -1,0 +1,43 @@
+digraph G {
+    rankdir=TB;
+    node [shape=box, fontname="Helvetica", fontsize=12];
+    edge [fontname="Helvetica", fontsize=10];
+
+    // L0 (entrypoints)
+    { rank=same;
+        github_com_fritzkeyzer_hooksh_cmd_hooksh [label="main"];
+    }
+    // L1
+    { rank=same;
+        github_com_fritzkeyzer_hooksh_commands_docs [label="docs"];
+        github_com_fritzkeyzer_hooksh_commands_entrypoints [label="entrypoints"];
+        github_com_fritzkeyzer_hooksh_commands_go_lyze [label="go_lyze"];
+        github_com_fritzkeyzer_hooksh_commands_packages [label="packages"];
+    }
+    // L2
+    { rank=same;
+        github_com_fritzkeyzer_hooksh_internal_limitutil [label="limitutil"];
+        github_com_fritzkeyzer_hooksh_internal_xmlutil [label="xmlutil"];
+        github_com_fritzkeyzer_hooksh_pkg_go_lyze [label="go_lyze"];
+    }
+    // L3 (utilities)
+    { rank=same;
+        github_com_fritzkeyzer_hooksh_internal_fsutil [label="fsutil"];
+    }
+
+    github_com_fritzkeyzer_hooksh_cmd_hooksh -> github_com_fritzkeyzer_hooksh_commands_docs;
+    github_com_fritzkeyzer_hooksh_cmd_hooksh -> github_com_fritzkeyzer_hooksh_commands_entrypoints;
+    github_com_fritzkeyzer_hooksh_cmd_hooksh -> github_com_fritzkeyzer_hooksh_commands_go_lyze;
+    github_com_fritzkeyzer_hooksh_cmd_hooksh -> github_com_fritzkeyzer_hooksh_commands_packages;
+    github_com_fritzkeyzer_hooksh_commands_docs -> github_com_fritzkeyzer_hooksh_internal_fsutil;
+    github_com_fritzkeyzer_hooksh_commands_docs -> github_com_fritzkeyzer_hooksh_internal_limitutil;
+    github_com_fritzkeyzer_hooksh_commands_docs -> github_com_fritzkeyzer_hooksh_internal_xmlutil;
+    github_com_fritzkeyzer_hooksh_commands_entrypoints -> github_com_fritzkeyzer_hooksh_internal_fsutil;
+    github_com_fritzkeyzer_hooksh_commands_entrypoints -> github_com_fritzkeyzer_hooksh_internal_limitutil;
+    github_com_fritzkeyzer_hooksh_commands_entrypoints -> github_com_fritzkeyzer_hooksh_internal_xmlutil;
+    github_com_fritzkeyzer_hooksh_commands_go_lyze -> github_com_fritzkeyzer_hooksh_pkg_go_lyze;
+    github_com_fritzkeyzer_hooksh_commands_packages -> github_com_fritzkeyzer_hooksh_internal_fsutil;
+    github_com_fritzkeyzer_hooksh_commands_packages -> github_com_fritzkeyzer_hooksh_internal_limitutil;
+    github_com_fritzkeyzer_hooksh_commands_packages -> github_com_fritzkeyzer_hooksh_internal_xmlutil;
+    github_com_fritzkeyzer_hooksh_pkg_go_lyze -> github_com_fritzkeyzer_hooksh_internal_fsutil;
+}

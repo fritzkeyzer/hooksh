@@ -157,6 +157,35 @@ func main() {
 						Name:  "html-render",
 						Usage: "render graph to png via headless chrome to specified filename",
 					},
+					&cli.BoolFlag{
+						Name:  "html-dark",
+						Usage: "set html default theme to dark mode (without this flag default is light)",
+					},
+					&cli.StringFlag{
+						Name:  "html-hidden-nodes",
+						Usage: "comma-separated package ids to hide in html output",
+					},
+					&cli.StringFlag{
+						Name:  "html-render-res",
+						Usage: "render resolution for --html-render in pixels as width,height",
+					},
+					&cli.StringFlag{
+						Name:  "html-layout",
+						Usage: "mermaid layout direction (TD or LR)",
+						Value: "TD",
+					},
+					&cli.StringFlag{
+						Name:  "html-title",
+						Usage: "title to display in the html graph",
+					},
+					&cli.StringFlag{
+						Name:  "html-subtitle",
+						Usage: "subtitle to display in the html graph",
+					},
+					&cli.StringSliceFlag{
+						Name:  "html-node-color",
+						Usage: "node color override as node,hex (repeatable)",
+					},
 					&cli.StringSliceFlag{
 						Name:  "top",
 						Usage: "comma-separated package dirs to pin as L0 entrypoints (md format only)",
@@ -176,6 +205,13 @@ func main() {
 						Output:              cmd.String("output"),
 						HTML:                cmd.String("html"),
 						HTMLRender:          cmd.String("html-render"),
+						HTMLDark:            cmd.Bool("html-dark"),
+						HTMLHiddenNodes:     cmd.String("html-hidden-nodes"),
+						HTMLRenderRes:       cmd.String("html-render-res"),
+						HTMLLayout:          cmd.String("html-layout"),
+						HTMLNodeColors:      cmd.StringSlice("html-node-color"),
+						HTMLTitle:           cmd.String("html-title"),
+						HTMLSubtitle:        cmd.String("html-subtitle"),
 					})
 					return nil
 				},

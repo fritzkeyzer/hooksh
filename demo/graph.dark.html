@@ -89,7 +89,37 @@
         </div>
 
         <script id="mermaid-data" type="text/plain">
-            <!-- MERMAID_DATA -->
+            graph TD
+  %% L0 (entrypoints)
+  main["main"]
+  %% L1
+  docs["docs"]
+  entrypoints["entrypoints"]
+  commands_go_lyze["go_lyze"]
+  packages["packages"]
+  %% L2
+  limitutil["limitutil"]
+  xmlutil["xmlutil"]
+  pkg_go_lyze["go_lyze"]
+  %% L3 (utilities)
+  fsutil["fsutil"]
+  %% edges
+  main-->docs
+  main-->entrypoints
+  main-->commands_go_lyze
+  main-->packages
+  docs-->fsutil
+  docs-->limitutil
+  docs-->xmlutil
+  entrypoints-->fsutil
+  entrypoints-->limitutil
+  entrypoints-->xmlutil
+  commands_go_lyze-->pkg_go_lyze
+  packages-->fsutil
+  packages-->limitutil
+  packages-->xmlutil
+  pkg_go_lyze-->fsutil
+
         </script>
 
         <!-- Controls (top-left) -->
@@ -203,7 +233,7 @@
 
 <script>
     // ─── Constants & state ────────────────────────────────────────────────────
-    const HOOKSH_CONFIG = /* HOOKSH_CONFIG */ {};
+    const HOOKSH_CONFIG = {"hiddenNodes":["limitutil","fsutil"],"nodeColorMap":{"xmlutil":"#eb34de"},"darkDefault":true,"layout":"LR","title":"Go package structure","subtitle":"With the cli main package as the root node (LR layout, hidden and colored nodes for demo purposes)"};
 
     let network         = null;
     let currentGraphData = { nodes: [], edges: [] };

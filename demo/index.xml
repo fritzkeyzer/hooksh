@@ -1,0 +1,40 @@
+<entrypoints format="call-tree" depth="2">
+main.main
+├── docs.Run
+│   ├── fsutil.NormalizePath
+│   ├── fsutil.Sorted
+│   ├── fsutil.WalkFiles
+│   ├── limitutil.CountOrLimit
+│   ├── limitutil.EffectiveLimit
+│   ├── xmlutil.TagClose
+│   └── xmlutil.TagOpen
+├── entrypoints.Run
+│   ├── limitutil.CountOrLimit
+│   ├── limitutil.EffectiveLimit
+│   ├── xmlutil.TagClose
+│   └── xmlutil.TagOpen
+├── go_lyze.Run
+│   ├── go_lyze.Analyze
+│   ├── go_lyze.FormatDot
+│   ├── go_lyze.FormatMarkdown
+│   └── go_lyze.FormatMermaid
+└── packages.Run
+    ├── limitutil.CountOrLimit
+    ├── limitutil.EffectiveLimit
+    ├── xmlutil.TagClose
+    └── xmlutil.TagOpen
+</entrypoints>
+
+<packages kind="go-package-doc" count="6">
+- md: provides utilities for indexing markdown files
+- docs: lists documentation files for context bootstrapping.
+- entrypoints: prints a main package or function call tree.
+- go_lyze: provides the go-lyze CLI command.
+- go_lyze: analyzes a Go codebase via AST parsing and returns structured data about packages, their exports, and cross-package call relationships.
+- packages: lists project packages with their package docs.
+</packages>
+
+<docs kind="md" count="1">
+./README.md
+</docs>
+
