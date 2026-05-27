@@ -17,7 +17,7 @@ hooksh go-lyze --format mermaid --top "cmd/hooksh" --output demo/graph.mermaid -
 # generate html-render only
 hooksh go-lyze --format mermaid --top "cmd/hooksh" --html-render demo/graph.html.png
 
-# generate mermaid + html (dark mode) + html render
+# generate mermaid + html viewer + png render (realistic usage)
 hooksh go-lyze --format mermaid --top "cmd/hooksh" \
   --output demo/graph.mermaid \
   --html demo/graph.dark.html \
@@ -28,4 +28,5 @@ hooksh go-lyze --format mermaid --top "cmd/hooksh" \
   --html-title "Go package structure" \
   --html-subtitle "With the cli main package as the root node (LR layout, hidden and colored nodes for demo purposes)" \
   --html-render demo/graph.dark.html.png \
+  --skip-unchanged \
   --html-render-res "900,900"

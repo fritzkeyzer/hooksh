@@ -28,6 +28,7 @@ type Options struct {
 	Output              string
 	HTML                string
 	HTMLRender          string
+	SkipUnchanged       bool
 	HTMLDark            bool
 	HTMLHiddenNodes     string
 	HTMLRenderRes       string
@@ -127,6 +128,8 @@ func Run(opts Options) {
 			isTempHTML = true
 		}
 
+		previousHTML, _ := os.ReadFile(htmlPath)
+
 		if err := os.WriteFile(htmlPath, []byte(htmlContent), 0644); err != nil {
 			fmt.Printf("error writing html file: %v\n", err)
 			return
@@ -139,8 +142,12 @@ func Run(opts Options) {
 				return
 			}
 
-			if err := renderHTMLToPNG(htmlPath, opts.HTMLRender, width, height); err != nil {
-				fmt.Printf("error rendering html to png: %v\n", err)
+			skipRender := opts.SkipUnchanged && string(previousHTML) == htmlContent
+
+			if !skipRender {
+				if err := renderHTMLToPNG(htmlPath, opts.HTMLRender, width, height); err != nil {
+					fmt.Printf("error rendering html to png: %v\n", err)
+				}
 			}
 		}
 

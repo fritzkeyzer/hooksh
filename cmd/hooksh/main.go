@@ -159,6 +159,10 @@ func main() {
 						Usage: "render graph to png via headless chrome to specified filename",
 					},
 					&cli.BoolFlag{
+						Name:  "skip-unchanged",
+						Usage: "skip png rendering if the generated html is unchanged",
+					},
+					&cli.BoolFlag{
 						Name:  "html-dark",
 						Usage: "set html default theme to dark mode (without this flag default is light)",
 					},
@@ -206,6 +210,7 @@ func main() {
 						Output:              cmd.String("output"),
 						HTML:                cmd.String("html"),
 						HTMLRender:          cmd.String("html-render"),
+						SkipUnchanged:       cmd.Bool("skip-unchanged"),
 						HTMLDark:            cmd.Bool("html-dark"),
 						HTMLHiddenNodes:     cmd.String("html-hidden-nodes"),
 						HTMLRenderRes:       cmd.String("html-render-res"),
